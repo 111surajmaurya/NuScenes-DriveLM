@@ -1,0 +1,4 @@
+DriveLM Bias & Gap Report
+==================================================
+⚠️  GAP: "Why/reasoning" questions are rare (<5%) — dataset lacks causal reasoning.
+⚠️  GAP: No "how many" counting questions detected.

@@ -1,0 +1,151 @@
+════════════════════════════════════════════════════════════
+  DriveLM Dataset Analysis Report
+════════════════════════════════════════════════════════════
+  Total scenes      : 15
+  Total key frames  : 95
+  Total QA pairs    : 9006
+  Total objects     : 388
+
+────────────────────────────────────────────────────────────
+  01  QA Category Frequency
+────────────────────────────────────────────────────────────
+qa_category  count  pct
+ perception   4074 45.2
+ prediction   2861 31.8
+   planning   1976 21.9
+   behavior     95  1.1
+
+────────────────────────────────────────────────────────────
+  02  Question Type Frequency (fine-grained)
+────────────────────────────────────────────────────────────
+          question_type  count  pct
+             what_query   3004 33.4
+                 yes_no   2183 24.2
+    other_question_type   1147 12.7
+           status_query   1020 11.3
+     object_enumeration    484  5.4
+     visual_description    388  4.3
+           future_state    340  3.8
+            which_query    285  3.2
+ego_behavior_prediction     95  1.1
+         planning_other     60  0.7
+
+────────────────────────────────────────────────────────────
+  03  Individual Camera Mention Frequency
+────────────────────────────────────────────────────────────
+         camera  mentions  pct
+      CAM_FRONT      6583 24.1
+       CAM_BACK      5009 18.3
+CAM_FRONT_RIGHT      4326 15.8
+ CAM_FRONT_LEFT      4069 14.9
+ CAM_BACK_RIGHT      3748 13.7
+  CAM_BACK_LEFT      3568 13.1
+
+────────────────────────────────────────────────────────────
+  04  Object References per QA Distribution
+────────────────────────────────────────────────────────────
+ n_objects_referenced  count  pct
+                    0   3409 37.9
+                    1   4221 46.9
+                    2   1002 11.1
+                    3    162  1.8
+                    4     79  0.9
+                    5     26  0.3
+                    6     54  0.6
+                   12     37  0.4
+                   20     13  0.1
+                   30      3  0.0
+  QAs with no specific object refs: 37.9%
+
+────────────────────────────────────────────────────────────
+  05  Answer Word Count Statistics
+────────────────────────────────────────────────────────────
+       answer_words
+count       9006.00
+mean           7.28
+std           13.06
+min            1.00
+25%            1.00
+50%            2.00
+75%            9.00
+max          136.00
+
+  Answer length buckets:
+answer_length_bin  count
+              1-5   6422
+             6-10    742
+            11-20   1079
+            21-50    515
+              50+    248
+
+────────────────────────────────────────────────────────────
+  06  Question Word Count Statistics
+────────────────────────────────────────────────────────────
+       question_words
+count         9006.00
+mean            13.87
+std             12.09
+min              4.00
+25%              9.00
+50%             12.00
+75%             16.00
+max            113.00
+
+────────────────────────────────────────────────────────────
+  08  Object Category Frequency
+────────────────────────────────────────────────────────────
+       category  count  pct
+        Vehicle    274 70.6
+Traffic element     49 12.6
+     Pedestrian     40 10.3
+          Cycle     20  5.2
+         Others      5  1.3
+
+────────────────────────────────────────────────────────────
+  09  Object Status Frequency
+────────────────────────────────────────────────────────────
+    status  count  pct
+    Moving    223 57.5
+Stationary    116 29.9
+   Unknown     49 12.6
+
+────────────────────────────────────────────────────────────
+  10  Objects per Frame Statistics
+────────────────────────────────────────────────────────────
+       objects_per_frame
+count              95.00
+mean                4.08
+std                 0.97
+min                 3.00
+25%                 3.00
+50%                 4.00
+75%                 5.00
+max                 6.00
+
+  Objects per camera:
+         camera  object_count  pct
+      CAM_FRONT           192 49.5
+       CAM_BACK            87 22.4
+CAM_FRONT_RIGHT            47 12.1
+ CAM_FRONT_LEFT            36  9.3
+ CAM_BACK_RIGHT            17  4.4
+  CAM_BACK_LEFT             9  2.3
+
+────────────────────────────────────────────────────────────
+  11  QA Pairs per Frame Distribution
+────────────────────────────────────────────────────────────
+       qa_per_frame
+count         95.00
+mean          94.80
+std           16.63
+min           67.00
+25%           83.50
+50%           92.00
+75%          107.00
+max          139.00
+
+────────────────────────────────────────────────────────────
+  BIASES & GAPS DETECTED
+────────────────────────────────────────────────────────────
+GAP: "Why/reasoning" questions are rare (<5%) — dataset lacks causal reasoning.
+GAP: No "how many" counting questions detected.
