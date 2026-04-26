@@ -1,0 +1,8 @@
+"question_type","n","rouge_l","bert_score"
+"status_query","1","0.0","0.8764"
+"which_query","1","0.0","0.8157"
+"object_enumeration","1","0.3704","0.9087"
+"ego_behavior_prediction","2","0.875","0.9828"
+"other_question_type","1","1.0","1.0"
+"what_query","1","1.0","1.0"
+"yes_no","1","1.0","1.0"

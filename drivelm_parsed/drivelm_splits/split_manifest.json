@@ -1,0 +1,49 @@
+{
+  "seed": 42,
+  "input_dir": "drivelm_parsed",
+  "train": {
+    "name": "train",
+    "num_scenes": 12,
+    "scene_tokens": [
+      "0053e9c440a94c1b84bd9c4223efc4b0",
+      "00590cbfa24a430a8c274b51e1c71231",
+      "010fb5bcc7984d0f8f07f99e02366df1",
+      "01796494e25c448dadaba70cfcc3532d",
+      "019b370afb444a2e8ce85654898307c8",
+      "01c3f5e39956402da3e37845632fadca",
+      "01c8c59260db4a3682d7b4f8da65425e",
+      "2fc3753772e241f2ab2cd16a784cc680",
+      "bebf5f5b2a674631ab5c88fd1aa9e87a",
+      "cc8c0bf57f984915a77078b10eb33198",
+      "d25718445d89453381c659b9c8734939",
+      "e233467e827140efa4b42d2b4c435855"
+    ],
+    "num_frames": 73,
+    "num_objects": 289,
+    "num_qa": 6810,
+    "qa_by_category": {
+      "behavior": 73,
+      "perception": 3104,
+      "planning": 1474,
+      "prediction": 2159
+    }
+  },
+  "val": {
+    "name": "val",
+    "num_scenes": 3,
+    "scene_tokens": [
+      "0287702725184161af95373198546a59",
+      "02e484442a2f411b971edcf96ebbe885",
+      "de7d80a1f5fb4c3e82ce8a4f213b450a"
+    ],
+    "num_frames": 22,
+    "num_objects": 99,
+    "num_qa": 2196,
+    "qa_by_category": {
+      "behavior": 22,
+      "perception": 970,
+      "planning": 502,
+      "prediction": 702
+    }
+  }
+}

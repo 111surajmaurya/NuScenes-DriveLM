@@ -43,7 +43,7 @@ http://localhost:8888
 Run the parser:
 
 ```bash
-python scripts/parse_drivelm2.py ./data/QA_dataset_nus/v1_0_train_nus.json
+python scripts/parse_drivelm.py ./data/QA_dataset_nus/v1_0_train_nus.json
 ```
 
 ### Output
@@ -77,6 +77,7 @@ python scripts/vis_data.py \
   --num_sample 20
 ```
 
+
 ### Output
 
 outputs/
@@ -92,6 +93,13 @@ Each visualization includes:
 
 - Bounding boxes for referenced objects
 - Question and Answer overlay
+
+
+## Split train-val dataset
+
+```
+python3 scripts/benchmark_local.py     --csv ./drivelm_parsed/drivelm_splits/val/qa_enriched.csv     --images ./data/nuscenes     --limit 10
+```
 
 ---
 

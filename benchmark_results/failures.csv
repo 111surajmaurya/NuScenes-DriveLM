@@ -1,0 +1,3 @@
+"failure_mode","category","rouge_l","question","reference","prediction"
+"A_hallucination","prediction","0.0","Which object is most likely to be occluded by the pedestrian in front-right camera? Would this object affect the ego vehicle? Based on this object, what action of the ego vehicle is dangerous?","None, no, none.","There is a person walking in front of the ego vehicle. The pedestrian is most likely to be occluded by the person in front-right camera. This would affect the ego vehicle's decision-making process, as the vehicle would need to navigate around the pedestrian safely. The ego vehicle is moving."
+"D_incomplete","perception","0.0","What is the status of the bicycle that is to the back right of the ego car?","One bicycle is without a rider.","Moving."

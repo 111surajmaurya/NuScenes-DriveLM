@@ -1,0 +1,98 @@
+
+=================================================================
+  DriveLM Local VLM Benchmark  --  llava-1.5-7b-hf
+=================================================================
+  Model      : llava-hf/llava-1.5-7b-hf
+  Quantize   : 4bit
+  Date       : 2026-04-26 20:00
+  Total QAs  : 8
+  Evaluated  : 8
+  Skipped    : 0  (image missing or OOM)
+
+  -- OVERALL METRICS
+    ROUGE-L (primary)     : 0.6401
+    Exact Match           : 0.3750
+    BERTScore F1          : 0.9458
+    Avg Latency ms        : 2966.6375
+    P95 Latency ms        : 4264.3200
+    Peak VRAM GB          : 3.8200
+
+  -- METRICS BY QA CATEGORY
+qa_category  n  rouge_l  exact_match  bert_score  latency_ms  avg_images
+   behavior  2   0.8750          0.0      0.9828     3910.90         6.0
+ perception  2   0.1852          0.0      0.8926     2856.55         6.0
+   planning  2   1.0000          1.0      1.0000     2765.05         6.0
+ prediction  2   0.5000          0.5      0.9078     2334.05         1.0
+
+  -- METRICS BY QUESTION TYPE  (hardest first)
+          question_type  n  rouge_l  bert_score
+           status_query  1   0.0000      0.8764
+            which_query  1   0.0000      0.8157
+     object_enumeration  1   0.3704      0.9087
+ego_behavior_prediction  2   0.8750      0.9828
+    other_question_type  1   1.0000      1.0000
+             what_query  1   1.0000      1.0000
+                 yes_no  1   1.0000      1.0000
+
+  -- LATENCY DISTRIBUTION
+count       8.0
+mean     2966.6
+std      1106.8
+min       712.4
+50%      2926.1
+75%      3532.4
+90%      4098.1
+95%      4264.3
+99%      4397.3
+max      4430.5
+
+  By category:
+qa_category   mean  median    max
+   behavior 3910.9  3910.9 4430.5
+ perception 2856.6  2856.6 3063.3
+   planning 2765.0  2765.0 2788.9
+ prediction 2334.0  2334.0 3955.7
+
+  -- FAILURE MODE DISTRIBUTION
+   failure_mode  count  pct_of_evaluated                             description
+   D_incomplete      1              12.5       Answer too short / misses objects
+A_hallucination      1              12.5 Model hallucinates objects not in image
+
+  -- REPRESENTATIVE SUCCESSES  (ROUGE-L >= 0.7, 2 per category)
+
+  [PLANNING]  RL=1.000  BS=1.000
+  Q  : What is the probability of colliding with the vehicle in front-left camera after the ego vehicle steps on the 
+  REF: Low.
+  PRD: Low.
+
+  [PLANNING]  RL=1.000  BS=1.000
+  Q  : Is the vehicle in front-right camera an object that the ego vehicle should consider in the current scene?
+  REF: Yes.
+  PRD: Yes.
+
+  [PREDICTION]  RL=1.000  BS=1.000
+  Q  : Would the vehicle in back-right camera be in the moving direction of the ego vehicle?
+  REF: No.
+  PRD: No.
+
+  [BEHAVIOR]  RL=0.917  BS=0.991
+  Q  : Predict the behavior of the ego vehicle.
+  REF: The ego vehicle is going straight. The ego vehicle is driving slowly.
+  PRD: The ego vehicle is going straight. The ego vehicle is driving fast.
+
+  [BEHAVIOR]  RL=0.833  BS=0.974
+  Q  : Predict the behavior of the ego vehicle.
+  REF: The ego vehicle is going straight. The ego vehicle is not moving.
+  PRD: The ego vehicle is going straight. The ego vehicle is driving fast.
+
+  -- REPRESENTATIVE FAILURES  (2 per failure type)
+
+  [A_hallucination]  [PREDICTION]  RL=0.000
+  Q  : Which object is most likely to be occluded by the pedestrian in front-right camera? Would this object affect t
+  REF: None, no, none.
+  PRD: There is a person walking in front of the ego vehicle. The pedestrian is most likely to be occluded by the per
+
+  [D_incomplete]  [PERCEPTION]  RL=0.000
+  Q  : What is the status of the bicycle that is to the back right of the ego car?
+  REF: One bicycle is without a rider.
+  PRD: Moving.

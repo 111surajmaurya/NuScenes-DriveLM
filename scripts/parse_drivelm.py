@@ -75,15 +75,51 @@ def parse_object_key(obj_key: str) -> dict:
     }
 
 
-def build_object_lookup(key_object_infos: dict) -> dict:
-    """Map obj_key → human-readable string."""
+def coarse_object_name(category: str) -> str:
+    category = (category or '').strip().lower()
+    if category == 'vehicle':
+        return 'the vehicle'
+    if category == 'pedestrian':
+        return 'the pedestrian'
+    if category == 'cycle':
+        return 'the cycle or rider'
+    if category == 'traffic element':
+        return 'the traffic element'
+    return 'the object'
+
+
+def question_lookup_mode(question: str) -> str:
+    q = str(question).lower().strip()
+
+    if 'traffic sign' in q or 'road barrier' in q:
+        return 'generic'
+    return 'coarse'
+
+
+def answer_lookup_mode(question: str, answer: str) -> str:
+    q = str(question).lower().strip()
+    if 'traffic sign' in q or 'road barrier' in q:
+        return 'generic'
+    return 'coarse'
+
+
+def build_object_lookup(key_object_infos: dict, mode: str = "detailed") -> dict:
+    """Map obj_key to a question/answer-friendly text description."""
     lookup = {}
     for obj_key, info in key_object_infos.items():
         parsed    = parse_object_key(obj_key)
         cam_human = CAMERA_MAPPING.get(parsed['camera'], parsed['camera'])
-        category  = info.get('Category') or ''
-        status    = info.get('Status')   or ''
-        desc      = (info.get('Visual_description') or '').rstrip('.')
+        category  = info.get('Category') or info.get('category') or ''
+        status    = info.get('Status') or info.get('status') or ''
+        desc      = (info.get('Visual_description') or info.get('visual_description') or '').rstrip('.')
+
+        if mode == "generic":
+            lookup[obj_key] = f"the object in {cam_human}"
+            continue
+        if mode == "coarse":
+            lookup[obj_key] = f"{coarse_object_name(category)} in {cam_human}"
+            continue
+
         human = f"{status} {desc} in {cam_human}".strip() if status \
                 else f"{desc} ({category}) in {cam_human}"
         lookup[obj_key] = human
@@ -99,6 +135,22 @@ def replace_object_refs(text: str, lookup: dict) -> str:
         key = match.group(0)
         return f'{lookup[key]}' if key in lookup else f'{key}'
     return pattern.sub(replacer, text)
+
+
+def clean_question_text(text: str) -> str:
+    """Smooth awkward phrasing introduced by object-ref replacement."""
+    text = str(text)
+    text = text.replace('of object the vehicle', 'of the vehicle')
+    text = text.replace('of object the pedestrian', 'of the pedestrian')
+    text = text.replace('of object the cycle or rider', 'of the cycle or rider')
+    text = text.replace('of object the traffic element', 'of the traffic element')
+    text = text.replace('of object the object', 'of the object')
+    text = text.replace('object the vehicle', 'the vehicle')
+    text = text.replace('object the pedestrian', 'the pedestrian')
+    text = text.replace('object the cycle or rider', 'the cycle or rider')
+    text = text.replace('object the traffic element', 'the traffic element')
+    text = text.replace('object the object', 'the object')
+    return text
 
 
 def count_obj_refs(ref_str) -> int:
@@ -252,7 +304,7 @@ def parse_drivelm(json_path: str) -> dict[str, pd.DataFrame]:
             image_paths      = frame_data.get("image_paths", {})
 
             # build object lookup for replacement
-            obj_lookup = build_object_lookup(key_object_infos)
+            obj_lookup = build_object_lookup(key_object_infos, mode="detailed")
 
             # serialize image paths
             img_paths_str = " | ".join(
@@ -316,8 +368,16 @@ def parse_drivelm(json_path: str) -> dict[str, pd.DataFrame]:
                     q_raw = qa.get("Q", "")
                     a_raw = qa.get("A", "")
 
-                    q_replaced = replace_object_refs(q_raw, obj_lookup)
-                    a_replaced = replace_object_refs(a_raw, obj_lookup)
+                    q_lookup = build_object_lookup(
+                        key_object_infos,
+                        mode=question_lookup_mode(q_raw),
+                    )
+                    a_lookup = build_object_lookup(
+                        key_object_infos,
+                        mode=answer_lookup_mode(q_raw, a_raw),
+                    )
+                    q_replaced = clean_question_text(replace_object_refs(q_raw, q_lookup))
+                    a_replaced = clean_question_text(replace_object_refs(a_raw, a_lookup))
 
                     # extract object references
                     obj_refs_q = re.findall(r"<c\d+,[A-Z_]+,[\d.]+,[\d.]+>", q_raw)
@@ -637,7 +697,7 @@ if __name__ == '__main__':
     import sys, csv as csv_module
 
     drivelm_json  = sys.argv[1] if len(sys.argv) > 1 else 'v1_1_train_nus.json'
-    output_dir    = sys.argv[4] if len(sys.argv) > 4 else './drivelm_parsed'
+    output_dir    = sys.argv[2] if len(sys.argv) > 2 else './drivelm_parsed'
 
     print(f'\n{"═"*65}')
     print(f'  DriveLM JSON  : {drivelm_json}')

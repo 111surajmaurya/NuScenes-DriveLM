@@ -1,0 +1,3 @@
+"failure_mode","count","pct_of_evaluated","description"
+"D_incomplete","1","12.5","Answer too short / misses objects"
+"A_hallucination","1","12.5","Model hallucinates objects not in image"
