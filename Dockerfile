@@ -1,5 +1,5 @@
 # Base: GPU-enabled PyTorch
-FROM pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime
+FROM pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime
 
 # Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -20,21 +20,14 @@ WORKDIR /workspace/assignment
 RUN pip install --upgrade pip
 
 # Core ML + VLM stack
-RUN pip install \
-    torch torchvision torchaudio \
-    transformers \
-    accelerate \
-    peft \
-    bitsandbytes \
-    datasets \
-    opencv-python \
-    pillow \
-    matplotlib \
-    scikit-learn \
-    tqdm
+# RUN pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
+
+RUN pip install transformers==4.44.2 tokenizers==0.19.1 accelerate==0.30.1
+
+RUN pip install bitsandbytes==0.43.1 sentencepiece==0.2.1 protobuf
 
 # nuScenes support
-RUN pip install nuscenes-devkit
+RUN pip install nuscenes-devkit rouge-score bert-score
 
 # Optional: jupyter (for debugging)
 RUN pip install jupyter
