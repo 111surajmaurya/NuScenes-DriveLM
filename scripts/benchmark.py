@@ -1,77 +1,3 @@
-"""
-DriveLM Local VLM Benchmark  —  LLaVA-1.5-7B  (v3)
-=====================================================
-
-Changes from v1 → v2 → v3:
-
-  v2 IMPROVEMENTS KEPT:
-    1. parse_camera_paths / parse_relevant_cameras at module level (reusable)
-    2. get_images_for_row uses relevant_cameras column (per-row precision)
-       planning/behavior still forced to ALL_CAMERAS (correct — need full scene)
-    3. Images loaded in canonical ALL_CAMERAS order (FRONT→BACK, spatial layout)
-    4. CAMERA_LABEL dict for human-readable inline labels
-    5. <image> token count assertion guards against silent misalignment
-    6. Always pass images as list (not conditional single vs list)
-    7. split_sentences() with decimal-safe regex (fixes "2.5 m" splits)
-    8. C_wrong_camera uses multi-word phrases not single direction words
-    9. dry_run uses per-row relevant_cameras for n_expected calculation
-    10. bitsandbytes added to install requirements
-
-  v2 BUGS FIXED IN v3:
-    A. IMAGE POSITION — most important fix
-       v1/v2 put all <image> tokens BEFORE the text (v1) or
-       EMBEDDED mid-text after camera labels (v2).
-       LLaVA-1.5 was pretrained with images at the START of the USER turn.
-       v3 puts camera-labelled <image> tokens first, THEN text instructions.
-
-       v1 structure:  USER: <img><img> [system][few-shot][rules] Question: Q  Answer:  ASSISTANT:
-       v2 structure:  USER: [system][few-shot][rules] [Front]: <img> [Back]: <img>  Question: Q  ASSISTANT:
-       v3 structure:  USER: [Front Camera]: <img>     ← images FIRST with labels
-                            [Back Camera]: <img>
-                            [system][few-shot][rules]
-                            Question: Q
-                            Answer:                   ← "Answer:" cue restored
-                      ASSISTANT:
-
-    B. MISSING "Answer:" CUE
-       v1 ended with "Answer:\nASSISTANT:" — this helped model produce short answers.
-       v2 dropped it — model rambled more, EM dropped significantly.
-       v3 restores "Answer:" before ASSISTANT:.
-
-    C. BEHAVIOR FEW-SHOT: identical questions with different answers
-       v2 used "Q: Predict the behavior" twice with different answers.
-       Model confused by contradictory examples → behavior EM = 0.0000.
-       v3 uses different questions for each example.
-
-  WHY v2 STILL DROPPED ACCURACY vs v1 (before this fix):
-    Same image count (planning/behavior both use 6 cams), same img-size.
-    Root cause was the prompt structure, not camera selection:
-      - behavior  ROUGE: 0.8442 → 0.2749 (−67%) — identical question in few-shot
-      - perception ROUGE: 0.3850 → 0.2799 (−27%) — images mid-text non-standard
-      - prediction ROUGE: 0.3341 → 0.2874 (−14%) — missing Answer: cue
-      - planning   ROUGE: 0.3180 → 0.3298 (+4%)  — camera labels helped here
-
-Install:
-  pip install transformers accelerate pillow pandas tqdm rouge-score bert-score
-              sentencepiece protobuf bitsandbytes
-
-Usage:
-  python3 benchmark_local.py \\
-      --csv     qa_enriched.csv \\
-      --images  ./data/nuscenes \\
-      --out     ./benchmark_results
-
-  python3 benchmark_local.py --csv qa_enriched.csv --images ./data/nuscenes --detect
-  python3 benchmark_local.py --csv qa_enriched.csv --images ./data/nuscenes --dry-run
-
-  # With fine-tuned adapter
-  python3 benchmark_local.py \\
-      --csv          qa_enriched.csv \\
-      --images       ./data/nuscenes \\
-      --out          ./benchmark_results \\
-      --adapter-path ./checkpoints/best_checkpoint
-"""
-
 import os, re, sys, csv, time, argparse, random, gc
 from pathlib import Path
 from datetime import datetime
@@ -379,9 +305,6 @@ def load_model():
         bnb_4bit_quant_type='nf4',
     )
 
-    # Load processor manually — AutoProcessor.from_pretrained crashes on
-    # newer Hub configs that include fields (image_token, patch_size, etc.)
-    # not present in transformers 4.40.0's LlavaProcessor.__init__.
     image_processor = CLIPImageProcessor.from_pretrained(hf_id)
     tokenizer       = AutoTokenizer.from_pretrained(hf_id, use_fast=False)
     processor       = LlavaProcessor(image_processor=image_processor,
@@ -392,27 +315,12 @@ def load_model():
         quantization_config = quant_cfg,
         torch_dtype         = torch.float16,
         low_cpu_mem_usage   = True,
-        # NO device_map — bitsandbytes handles GPU placement.
-        # transformers 4.40.0: does not auto-infer device_map for quantized
-        # models (that regression came in 4.41+).
     )
 
     if adapter_path:
         from peft import PeftModel
         print(f'  Loading adapter: {adapter_path}')
 
-        # DO NOT use merge_and_unload() for benchmarking.
-        #
-        # merge_and_unload() converts 4-bit weights to FP16:
-        #   Before merge: 3.5 GB (4-bit)  → ~12 GB free for activations
-        #   After  merge: 13.4 GB (FP16)  →  ~2 GB free for activations
-        #
-        # With only 2GB free, 6-cam samples OOM (need ~4GB activations).
-        # More OOM skips = slower effective throughput.
-        #
-        # Fix: keep LoRA adapters on top of the frozen 4-bit base.
-        # At inference: output = base_out + lora_A @ lora_B * scale
-        # Memory stays at ~4.5GB — same as base model, no extra OOM risk.
         model = PeftModel.from_pretrained(
             model, adapter_path,
             is_trainable=False   # inference only — disables grad tracking
@@ -423,11 +331,6 @@ def load_model():
         proj_path = _os.path.join(adapter_path, 'projector.pt')
         if _os.path.exists(proj_path):
             # Load projector weights as saved (FP32).
-            # Training saves as FP32 for numerical safety — keep as-is.
-            # Do NOT cast to FP16 here: load_state_dict with dtype mismatch
-            # + strict=False can silently skip weight updates, breaking the
-            # projector. The projector is tiny (20M params, ~0.2s compute)
-            # so FP32 vs FP16 has negligible effect on total latency.
             proj_sd = {
                 k.replace('original_module.', ''): v
                 for k, v in torch.load(proj_path, map_location='cpu', weights_only=True).items()
@@ -760,8 +663,6 @@ def run_benchmark(df: pd.DataFrame, model, processor, cfg: dict,
 
     # Warmup run — first forward pass compiles CUDA kernels (especially
     # for PeftModel which uses different kernels than plain model).
-    # Without warmup the first 1-2 samples appear 3-5x slower than the rest,
-    # skewing latency stats. We run 1 silent forward pass before timing starts.
     if torch.cuda.is_available() and len(df) > 0:
         print('  Warming up CUDA kernels ...')
         _wrow = df.iloc[0]
