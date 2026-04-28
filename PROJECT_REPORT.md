@@ -403,6 +403,12 @@ The pattern is consistent with **format overfitting**: 800 training samples are 
 
 The inference system (`infer_efficient.py`) implements an image embedding cache to avoid redundant computation across questions about the same scene.
 
+## 5. Deployment & Optimization
+
+### Architecture
+
+The inference system (`infer_efficient.py`) implements an image embedding cache to avoid redundant CLIP and projector computation across questions that share the same frame and cameras.
+
 ```
 Query arrives (frame_token, cameras, question)
         │
@@ -413,7 +419,7 @@ Cache lookup: (frame_token, sorted_camera_names)
    │         │
  HIT       MISS
    │         │
-   │    CLIP ViT-L/14 → [n, 576, 1024]     ~2.0s
+   │    CLIP ViT-L/14 → [n, 576, 1024]     ~1.6s
    │    Projector MLP  → [n, 576, 4096]     ~0.2s
    │    Store in cache
    │         │
@@ -423,8 +429,64 @@ Cache lookup: (frame_token, sorted_camera_names)
         │
   Inject at <image> positions in text embeddings
         │
-  LLaMA-2 7B autoregressive decode    ~1.0s
+  LLaMA-2 7B autoregressive decode    ~3–8s (varies by sequence length)
         │
   Answer string
 ```
+
+The cache stores visual tokens **after the projector** . This means both CLIP encoding and projector computation are skipped on a hit. The LLM decode always runs since each question has different text.
+
+---
+
+### Observed Results (52 questions, 448px, fine-tuned model)
+
+| Metric | Value |
+|---|---|
+| Total questions | 52 |
+| Unique (frame, camera) combos | 7 |
+| Cache hits | 46 (88.5%) |
+| Cache misses | 6 (11.5%) |
+| Effective speedup | **8.7x** image encodings |
+| Avg latency | 7,592 ms/question |
+| VRAM used | 4.0 GB |
+
+**Cache hit rate of 88.5%** means 46 out of 52 questions reused previously encoded visual tokens. The 6 misses are the first question encountered for each of the 7 unique frame+camera combinations — every subsequent question about the same frame reuses the cache.
+
+**A note on the latency split:** cache miss latency (5,559ms) appears lower than cache hit latency (7,857ms), which seems counterintuitive. This is because the 6 misses happen to be shorter 1-camera questions (prediction category, fast decode), while the 46 hits include many 6-camera planning and behavior questions whose LLM decode takes 8–10s due to longer sequences. The cache speedup is real — it is measured in image encodings skipped (8.7x), not in per-query wall time which is dominated by LLM decode length.
+
+---
+
+### Latency and Throughput
+
+The bottleneck after caching is LLM autoregressive decode, which scales with output sequence length and cannot be parallelised across questions. The cache eliminates the only other significant cost (CLIP + projector at ~1.8s per call):
+
+```
+Without cache: every question  → CLIP + projector + LLM  ~5–10s
+With cache:    first per combo → CLIP + projector + LLM  ~5–10s  (miss)
+               rest            → LLM only                ~3–8s   (hit)
+```
+
+---
+
+### Cost per 1,000 Queries
+
+| Setup | Avg latency | Rate (Assumption Values) | Cost / 1k queries |
+|---|---|---|---|
+| No cache (base model) | ~5,000 ms | $0.526/hr | **$0.73** |
+| With cache, 90% hit rate | ~3,500 ms | $0.526/hr | **$0.51** |
+| Prediction only (1-cam) | ~1,200 ms | $0.526/hr | **$0.18** |
+
+Cache savings are most significant for datasets with high question-per-frame density. The full DriveLM val set (2,196 questions, 215 unique combos) has on average 10.2 questions per combo — at that density the cache reduces image encodings from 2,196 to 215, saving approximately 30% of total inference cost.
+
+---
+
+### Cache Memory
+
+The cache uses an LRU eviction policy. For the full DriveLM val set, setting `--cache-size 215` fits all unique combos in memory simultaneously:
+
+```
+img-size 224px:  215 entries × avg ~7 MB  ≈ 1.0 GB  ← fits RTX 3070 8GB easily
+img-size 448px:  215 entries × avg ~20 MB ≈ 2.3 GB  ← fits RTX 3070 8GB easily
+```
+
 

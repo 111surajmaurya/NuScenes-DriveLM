@@ -123,7 +123,6 @@ Renders 6-camera surround-view layouts with QA overlays.
 ```bash
 python3 scripts/vis_data.py \
   --csv        ./drivelm_parsed/qa_enriched.csv \
-  --images     ./data/nuscenes \
   --num_sample 20
 ```
 
