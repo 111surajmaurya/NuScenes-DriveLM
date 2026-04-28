@@ -239,7 +239,7 @@ Technically correct but incomplete — the full sentence format expected by ROUG
 - **Exact Match** — strict correctness for short answers (Yes/No, Low/Medium/High, single-word status)
 - **BERTScore F1** — semantic similarity; high scores (0.92+) confirm the model is semantically correct even when phrasing differs
 
-[For More success and failure case check the report file.](./benchmark_results_v3_448/benchmark_report.txt) 
+[For More success and failure case check the report file.](./benchmark_results/benchmark_results_448_QA/benchmark_report.txt) 
 
 ---
 

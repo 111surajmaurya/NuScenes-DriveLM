@@ -290,10 +290,10 @@ Runs inference with a visual token cache that reuses CLIP and projector computat
 
 ```bash
 python3 scripts/infer_efficient.py \
-    --csv          ./drivelm_splits/val/qa_enriched.csv \
+    --csv          ./drivelm_parsed/drivelm_splits/val/qa_enriched.csv \
     --images       ./data/nuscenes \
     --out          ./results/inference \
-    --adapter-path ./checkpoints/best_checkpoint \
+    --adapter-path ./best_checkpoint \
     --img-size     448 \
     --cache-size   215
 ```
@@ -334,9 +334,9 @@ python3 scripts/infer_efficient.py \
 | Parse data | `python3 scripts/parse_drivelm.py ./data/QA_dataset_nus/v1_0_train_nus.json` |
 | Visualize | `python3 scripts/vis_data.py --csv ./drivelm_parsed/qa_enriched.csv --images ./data/nuscenes` |
 | Create split | `python3 scripts/create_scene_split.py --input-dir ./drivelm_parsed --output-dir ./drivelm_splits` |
-| Benchmark (base) | `python3 scripts/benchmark_local_v3.py --csv ./drivelm_splits/val/qa_enriched.csv --images ./data/nuscenes --out ./results/baseline` |
+| Benchmark (base) | `python3 scripts/benchmark.py --csv ./drivelm_splits/val/qa_enriched.csv --images ./data/nuscenes --out ./results/baseline` |
 | Fine-tune | `python3 scripts/train_drivelm_llava.py --train-csv ... --images ... --out ./checkpoints --mode qlora --img-size 224 --skip-baseline` |
-| Benchmark (fine-tuned) | `python3 scripts/benchmark_local_v3.py --csv ... --images ... --adapter-path ./checkpoints/best_checkpoint` |
+| Benchmark (fine-tuned) | `python3 scripts/benchmark.py --csv ... --images ... --adapter-path ./checkpoints/best_checkpoint` |
 | Inference (cached) | `python3 scripts/infer_efficient.py --csv ... --images ... --adapter-path ./checkpoints/best_checkpoint` |
 
 ---
