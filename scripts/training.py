@@ -1,113 +1,3 @@
-"""
-DriveLM-NuScenes  —  LLaVA-1.5-7B  LoRA / QLoRA Fine-tuning
-=============================================================
-Designed to run on Google Colab (A100 40GB recommended, T4 16GB with QLoRA).
-
-Install (run in Colab cell first):
-  !pip install -r requirements.txt --quiet
-
-Mount Drive and set paths:
-  from google.colab import drive
-  drive.mount('/content/drive')
-
-Usage:
-  # QLoRA with separate val CSV (recommended)
-  python3 train_drivelm_llava.py \\
-      --train-csv  /content/drive/MyDrive/drivelm/train.csv \\
-      --val-csv    /content/drive/MyDrive/drivelm/val.csv \\
-      --images     /content/drive/MyDrive/drivelm/nuscenes \\
-      --out        /content/drive/MyDrive/drivelm/checkpoints \\
-      --mode       qlora
-
-  # QLoRA with auto 90/10 split (when you only have one CSV)
-  python3 train_drivelm_llava.py \\
-      --train-csv  /content/drive/MyDrive/drivelm/qa_enriched.csv \\
-      --images     /content/drive/MyDrive/drivelm/nuscenes \\
-      --out        /content/drive/MyDrive/drivelm/checkpoints \\
-      --mode       qlora
-
-  # LoRA (needs A100 40GB+)
-  python3 train_drivelm_llava.py \\
-      --train-csv  /content/drive/MyDrive/drivelm/train.csv \\
-      --val-csv    /content/drive/MyDrive/drivelm/val.csv \\
-      --images     /content/drive/MyDrive/drivelm/nuscenes \\
-      --out        /content/drive/MyDrive/drivelm/checkpoints \\
-      --mode       lora
-
-  # Smoke test (100 samples, no GPU needed for setup check)
-  python3 train_drivelm_llava.py \\
-      --train-csv  qa_enriched.csv --images ./nuscenes \\
-      --out ./test_out --mode qlora --max-samples 100 --epochs 1
-
-═══════════════════════════════════════════════════════════════════════════════
-DESIGN DECISIONS
-═══════════════════════════════════════════════════════════════════════════════
-
-1. WHICH PARTS TO FINE-TUNE?
-   ─────────────────────────
-   A) vision_tower  (CLIP ViT-L/14, ~307M params)  →  FROZEN
-      CLIP already produces excellent visual representations for camera imagery.
-      Freezing saves 307M params worth of gradients and optimizer states.
-      Unfreezing risks catastrophic forgetting with no meaningful gain.
-
-   B) multi_modal_projector  (bridge MLP, ~20M params)  →  FULLY TRAINED
-      Tiny (20M) and highest-leverage for domain adaptation — directly controls
-      how visual tokens enter the LLM. Training it fully costs almost nothing
-      and is more impactful than applying LoRA to something this small.
-
-   C) language_model  (LLaMA-2/Vicuna, ~6.7B params)  →  LoRA / QLoRA
-      Where DriveLM answer formatting, driving vocabulary, and reasoning live.
-      LoRA adapters on attention + MLP layers give best quality/cost tradeoff.
-
-2. LORA TARGET MODULES  (attention + MLP, not just attention)
-   ─────────────────────────────────────────────────────────
-   q/k/v/o_proj   : attention — controls WHERE the model looks
-   gate/up/down_proj: MLP/FFN — controls WHAT the model outputs (stores
-                     factual patterns like "collision question → Low/Medium/High")
-   DriveLM needs both: new answer formats live in MLP weights, new attention
-   patterns for camera-label referencing live in attention weights.
-   LayerNorm + embeddings: never LoRA targets (instability / fixed vocab).
-
-3. LOSS FUNCTION
-   ─────────────
-   Cross-entropy over ANSWER TOKENS ONLY.
-   Full sequence: USER: <prompt> ASSISTANT: <answer>
-   Labels:        -100  -100 ...  -100       <answer tokens> <eos>
-   Prompt tokens masked with -100 → PyTorch ignores them in loss.
-   100% of gradient signal comes from answer quality.
-
-4. METRICS
-   ────────
-   train_loss : cross-entropy on training batches (teacher-forced)
-   val_loss   : cross-entropy on held-out val set → used to pick best ckpt
-   val_ppl    : exp(val_loss) — perplexity, more interpretable
-                ppl=2 means model chooses between ~2 equally likely tokens
-                ppl=10 means largely uncertain; ppl=50+ means near-random
-                Typical fine-tuned LLM ends at ppl=2-5.
-   ROUGE/BERTScore computed separately using benchmark_local.py after training.
-
-5. VALIDATION STRATEGY
-   ────────────────────
-   val_loss is computed every val_every_n optimizer steps + end of epoch.
-   Best checkpoint saved when val_loss improves (NOT train_loss).
-   Early stopping: stop if val_loss doesn't improve for `patience` val checks.
-   This catches overfitting: train_loss keeps falling, val_loss rises.
-
-6. TRAIN/VAL SPLIT (when no --val-csv provided)
-   ─────────────────────────────────────────────
-   Stratified 90/10 split by qa_category so all categories appear in both
-   splits. Critical for behavior (only 22 rows) — random split might put
-   all 22 in train leaving val blind to behavior performance.
-
-7. TOKEN BUDGET
-   ─────────────
-   576 visual tokens × max 6 images = 3456 visual tokens
-   + ~50 text tokens → max ≈ 3500 total
-   max_seq_length = 3584
-
-═══════════════════════════════════════════════════════════════════════════════
-"""
-
 import os, re, gc, csv, math, time, argparse, random
 from pathlib import Path
 from typing import Optional
@@ -956,13 +846,30 @@ def train(
     device = next(model.parameters()).device
     model.train()
 
-    # ── Log file ─────────────────────────────────────────────────────────
-    log_path = os.path.join(output_dir, 'train_log.csv')
+    # ── Log files ────────────────────────────────────────────────────────
+    # train_log.csv  — machine-readable, one row per optimizer step
+    # train_log.txt  — human-readable, mirrors everything printed to console
+    log_path     = os.path.join(output_dir, 'train_log.csv')
+    txt_log_path = os.path.join(output_dir, 'train_log.txt')
+
     with open(log_path, 'w', newline='') as f:
         csv.writer(f).writerow([
             'epoch', 'global_step', 'train_loss',
             'val_loss', 'val_ppl', 'lr', 'vram_gb', 'timestamp',
         ])
+
+    def tlog(msg: str):
+        """Print to console AND append to train_log.txt simultaneously."""
+        print(msg)
+        with open(txt_log_path, 'a') as f:
+            f.write(msg + '\n')
+
+    # Write header to txt log
+    with open(txt_log_path, 'w') as f:
+        f.write(f'DriveLM Training Log\n')
+        f.write(f'Started: {time.strftime("%Y-%m-%d %H:%M:%S")}\n')
+        f.write(f'Output : {output_dir}\n')
+        f.write('=' * 55 + '\n')
 
     print(f'\n{"─"*55}')
     print(f'  Training config')
@@ -1003,16 +910,16 @@ def train(
 
     # ── Baseline validation before any training ───────────────────────────
     if skip_baseline:
-        print('  Baseline validation skipped (--skip-baseline).')
-        print('  best_val_loss initialised to inf — first val check will save checkpoint.\n')
+        tlog('  Baseline validation skipped (--skip-baseline).')
+        tlog('  best_val_loss initialised to inf — first val check will save checkpoint.\n')
     else:
-        print('  Running baseline validation ...')
+        tlog('  Running baseline validation ...')
         init_val_loss, init_val_ppl = run_validation(model, val_loader, device)
         best_val_loss = init_val_loss
         last_val_loss = init_val_loss
         last_val_ppl  = init_val_ppl
         val_has_run   = True
-        print(f'  Baseline → val_loss={init_val_loss:.4f}  val_ppl={init_val_ppl:.2f}\n')
+        tlog(f'  Baseline → val_loss={init_val_loss:.4f}  val_ppl={init_val_ppl:.2f}\n')
 
     # ── Epoch loop ─────────────────────────────────────────────────────────
     for epoch in range(num_epochs):
@@ -1101,25 +1008,43 @@ def train(
                     postfix['val'] = f'pending step {((global_step // val_every_n) + 1) * val_every_n}'
                 pbar.set_postfix(postfix)
 
-                # ── Log ──────────────────────────────────────────────────
-                if global_step % log_every_n == 0:
-                    with open(log_path, 'a', newline='') as f:
-                        csv.writer(f).writerow([
-                            epoch + 1, global_step,
-                            round(train_loss, 6), round(last_val_loss, 6),
-                            round(last_val_ppl, 4), round(current_lr, 8),
-                            round(vram_gb, 2), time.strftime('%Y-%m-%d %H:%M:%S'),
-                        ])
+                # ── Log every optimizer step ─────────────────────────────
+                # Log unconditionally — with small sample counts (50-500)
+                # total_steps is small (6-62) so log_every_n=10 would miss
+                # most steps. We log every step so the CSV always has a
+                # complete loss curve regardless of dataset size.
+                with open(log_path, 'a', newline='') as f:
+                    csv.writer(f).writerow([
+                        epoch + 1, global_step,
+                        round(train_loss, 6),
+                        round(last_val_loss, 6) if last_val_loss is not None else '',
+                        round(last_val_ppl, 4)  if last_val_ppl  is not None else '',
+                        round(current_lr, 8),
+                        round(vram_gb, 2),
+                        time.strftime('%Y-%m-%d %H:%M:%S'),
+                    ])
 
                 # ── Periodic validation ───────────────────────────────────
                 if global_step % val_every_n == 0:
-                    print(f'\n  [step {global_step}] Validating ...')
+                    tlog(f'\n  [step {global_step}] Validating ...')
                     val_loss, val_ppl = run_validation(model, val_loader, device)
                     last_val_loss = val_loss
                     last_val_ppl  = val_ppl
                     val_has_run   = True
-                    print(f'  train_loss={train_loss:.4f}  '
-                          f'val_loss={val_loss:.4f}  val_ppl={val_ppl:.2f}')
+                    tlog(f'  train_loss={train_loss:.4f}  '
+                         f'val_loss={val_loss:.4f}  val_ppl={val_ppl:.2f}')
+
+                    # Log again immediately after val with fresh val metrics
+                    with open(log_path, 'a', newline='') as f:
+                        csv.writer(f).writerow([
+                            epoch + 1, global_step,
+                            round(train_loss, 6),
+                            round(val_loss, 6),
+                            round(val_ppl, 4),
+                            round(current_lr, 8),
+                            round(vram_gb, 2),
+                            time.strftime('%Y-%m-%d %H:%M:%S'),
+                        ])
 
                     if val_loss < best_val_loss:
                         best_val_loss    = val_loss
@@ -1134,8 +1059,8 @@ def train(
                                             'val_ppl' : round(val_ppl, 4),
                                             'train_loss': round(train_loss, 6),
                                         })
-                        print(f'  ★ New best val_loss={best_val_loss:.4f}  '
-                              f'val_ppl={val_ppl:.2f}')
+                        tlog(f'  ★ New best val_loss={best_val_loss:.4f}  '
+                             f'val_ppl={val_ppl:.2f}')
                     else:
                         # Skip early stop count when val returned inf (OOM)
                         if val_loss == float('inf'):
@@ -1169,13 +1094,13 @@ def train(
 
         # ── End of epoch ─────────────────────────────────────────────────
         epoch_avg = epoch_loss / max(1, epoch_steps)
-        print(f'\n  Epoch {epoch+1} done — train_loss={epoch_avg:.4f}')
+        tlog(f'\n  Epoch {epoch+1} done — train_loss={epoch_avg:.4f}')
 
         val_loss, val_ppl = run_validation(model, val_loader, device)
         last_val_loss = val_loss
         last_val_ppl  = val_ppl
-        print(f'  Epoch {epoch+1} val   — val_loss={val_loss:.4f}  '
-              f'val_ppl={val_ppl:.2f}')
+        tlog(f'  Epoch {epoch+1} val   — val_loss={val_loss:.4f}  '
+             f'val_ppl={val_ppl:.2f}')
 
         save_checkpoint(model, processor,
                         os.path.join(output_dir, f'epoch-{epoch+1}'),
@@ -1210,7 +1135,7 @@ def train(
                                 'val_ppl': round(val_ppl, 4),
                                 'train_loss': round(epoch_avg, 6),
                             })
-            print(f'  ★ Best checkpoint updated.')
+            tlog(f'  ★ Best checkpoint updated.')
 
     # ── Final ─────────────────────────────────────────────────────────────
     save_checkpoint(model, processor,
@@ -1219,12 +1144,13 @@ def train(
 
                     metadata={'best_val_loss': round(best_val_loss, 6),
                               'total_steps': global_step})
-    print(f'\n{"═"*55}')
-    print(f'  Training complete')
-    print(f'  Best val_loss   : {best_val_loss:.4f}')
-    print(f'  Best checkpoint : {os.path.join(output_dir, "best_checkpoint")}')
-    print(f'  Training log    : {log_path}')
-    print(f'{"═"*55}')
+    tlog(f'\n{"═"*55}')
+    tlog(f'  Training complete')
+    tlog(f'  Best val_loss   : {best_val_loss:.4f}')
+    tlog(f'  Best checkpoint : {os.path.join(output_dir, "best_checkpoint")}')
+    tlog(f'  CSV log         : {log_path}')
+    tlog(f'  Text log        : {txt_log_path}')
+    tlog(f'{"═"*55}')
 
 
 # ════════════════════════════════════════════════════════════════════════════

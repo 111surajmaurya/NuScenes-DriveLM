@@ -1,0 +1,49 @@
+DriveLM Training Log
+Started: 2026-04-28 07:58:18
+Output : /kaggle/working/output
+=======================================================
+  Baseline validation skipped (--skip-baseline).
+  best_val_loss initialised to inf — first val check will save checkpoint.
+
+
+  [step 10] Validating ...
+  train_loss=1.7434  val_loss=1.4013  val_ppl=4.06
+  ★ New best val_loss=1.4013  val_ppl=4.06
+
+  [step 20] Validating ...
+  train_loss=1.5416  val_loss=1.0670  val_ppl=2.91
+  ★ New best val_loss=1.0670  val_ppl=2.91
+
+  [step 30] Validating ...
+  train_loss=1.3338  val_loss=0.9079  val_ppl=2.48
+  ★ New best val_loss=0.9079  val_ppl=2.48
+
+  [step 40] Validating ...
+  train_loss=1.2319  val_loss=0.7660  val_ppl=2.15
+  ★ New best val_loss=0.7660  val_ppl=2.15
+
+  [step 50] Validating ...
+  train_loss=1.1670  val_loss=0.8287  val_ppl=2.29
+
+  [step 60] Validating ...
+  train_loss=1.1040  val_loss=0.7019  val_ppl=2.02
+  ★ New best val_loss=0.7019  val_ppl=2.02
+
+  [step 70] Validating ...
+  train_loss=1.0196  val_loss=0.6797  val_ppl=1.97
+  ★ New best val_loss=0.6797  val_ppl=1.97
+
+  [step 80] Validating ...
+  train_loss=0.9688  val_loss=0.6797  val_ppl=1.97
+  ★ New best val_loss=0.6797  val_ppl=1.97
+
+  [step 90] Validating ...
+  train_loss=0.9523  val_loss=0.5966  val_ppl=1.82
+  ★ New best val_loss=0.5966  val_ppl=1.82
+
+  [step 100] Validating ...
+  train_loss=0.9191  val_loss=0.6017  val_ppl=1.83
+
+  [step 110] Validating ...
+  train_loss=0.8881  val_loss=0.5732  val_ppl=1.77
+  ★ New best val_loss=0.5732  val_ppl=1.77

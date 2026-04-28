@@ -1,0 +1,250 @@
+
+=================================================================
+  DriveLM Local VLM Benchmark  --  llava-1.5-7b-hf
+=================================================================
+  Model      : llava-hf/llava-1.5-7b-hf
+  Quantize   : 4bit
+  Adapter    : none (base model)
+  Date       : 2026-04-27 22:15
+  Total QAs  : 2196
+  Evaluated  : 2196
+  Skipped    : 0  (image missing or OOM)
+
+
+  -- OVERALL METRICS
+    ROUGE-L (primary)    : 0.3560
+    Exact Match          : 0.2437
+    BERTScore F1         : 0.9245
+    Avg Latency ms       : 2393.9073
+    P95 Latency ms       : 4644.8100
+    Peak VRAM GB        : 3.8200
+
+  -- METRICS BY QA CATEGORY
+qa_category   n  rouge_l  exact_match  bert_score  latency_ms  avg_images
+   behavior  22   0.6010       0.0000      0.9256   3394.5773      6.0000
+ perception 953   0.3610       0.1983      0.9331   2390.6775      4.4397
+   planning 502   0.3638       0.2590      0.9043   3892.9972      6.0000
+ prediction 702   0.3358       0.3020      0.9273   1294.9330      1.2877
+
+  -- METRICS BY QUESTION TYPE  (hardest first)
+          question_type   n  rouge_l  bert_score
+            which_query  86   0.0897      0.8378
+     visual_description  99   0.1079      0.8958
+           status_query 238   0.2299      0.8946
+             what_query 764   0.3166      0.9036
+    other_question_type 274   0.3772      0.9266
+                 yes_no 505   0.4116      0.9730
+ego_behavior_prediction  22   0.6010      0.9256
+     object_enumeration 112   0.6450      0.9459
+           future_state  79   0.8101      0.9990
+
+  -- LATENCY DISTRIBUTION
+count    2179.0
+mean     2393.9
+std      1397.0
+min       658.5
+50%      2587.6
+75%      3378.2
+90%      4373.4
+95%      4644.8
+99%      5834.0
+max      7155.0
+
+  By category:
+qa_category   mean  median    max
+   behavior 3394.6  3387.5 3462.6
+ perception 2390.7  2587.2 5811.8
+   planning 3893.0  4060.5 6516.9
+ prediction 1294.9   988.2 7155.0
+
+  -- FAILURE MODE DISTRIBUTION
+    failure_mode  count  pct_of_evaluated                             description
+         F_other    597              27.4                          Other mismatch
+    D_incomplete    267              12.3       Answer too short / misses objects
+E_planning_error    184               8.4         Wrong ego behavior or direction
+ A_hallucination    172               7.9 Model hallucinates objects not in image
+  B_wrong_status     95               4.4              Stationary/Moving confused
+  C_wrong_camera      3               0.1       Wrong camera viewpoint referenced
+
+  -- REPRESENTATIVE SUCCESSES  (ROUGE-L >= 0.7, 2 per category)
+
+  [PREDICTION]  RL=1.000  EM=1  BS=1.000  ✓ EXACT
+  Q  : Would the traffic element in front camera be in the moving direction of the ego vehicle?
+  REF: No.
+  PRD: No.
+
+  [PERCEPTION]  RL=1.000  EM=1  BS=1.000  ✓ EXACT
+  Q  : Are there bicycles with riders to the front right of the ego car?
+  REF: No.
+  PRD: No.
+
+  [PREDICTION]  RL=1.000  EM=1  BS=1.000  ✓ EXACT
+  Q  : What object would consider the vehicle in front camera to be most relevant to its decision?
+  REF: The ego vehicle.
+  PRD: The ego vehicle.
+
+  [PLANNING]  RL=1.000  EM=1  BS=0.952  ✓ EXACT
+  Q  : What is the probability of colliding with the cycle or rider in front camera after the ego vehicle goes straig
+  REF: Low.
+  PRD: Low
+
+  [PLANNING]  RL=1.000  EM=1  BS=0.952  ✓ EXACT
+  Q  : What is the probability of colliding with the vehicle in back camera after the ego vehicle goes straight and k
+  REF: Low.
+  PRD: Low
+
+  [PERCEPTION]  RL=1.000  EM=1  BS=1.000  ✓ EXACT
+  Q  : Are there moving cars to the back of the ego car?
+  REF: Yes.
+  PRD: Yes.
+
+  -- BEST RESULT PER QUESTION TYPE  (highest ROUGE-L each type)
+
+  [EGO_BEHAVIOR_PREDICTION]  [BEHAVIOR]  RL=0.667  EM=0
+  Q  : Predict the behavior of the ego vehicle.
+  REF: The ego vehicle is going straight. The ego vehicle is not moving.
+  PRD: The ego vehicle is going straight.
+
+  [FUTURE_STATE]  [PREDICTION]  RL=1.000  EM=1  ✓ EXACT
+  Q  : Will the traffic element in front camera be in the moving direction of the vehicle in front-right camera?
+  REF: No.
+  PRD: No.
+
+  [OBJECT_ENUMERATION]  [PERCEPTION]  RL=0.933  EM=0
+  Q  : What are objects to the front left of the ego car?
+  REF: There are two cars and two pedestrians to the front left of the ego car.
+  PRD: There are two cars and one pedestrian to the front left of the ego car.
+
+  [OTHER_QUESTION_TYPE]  [PREDICTION]  RL=1.000  EM=1  ✓ EXACT
+  Q  : Would the vehicle in back camera be in the moving direction of the ego vehicle?
+  REF: No.
+  PRD: No.
+
+  [STATUS_QUERY]  [PERCEPTION]  RL=0.700  EM=0
+  Q  : What is the status of the cars that are to the front of the ego car?
+  REF: Many cars are parked in front of the ego car.
+  PRD: There are two cars in front of the ego car.
+
+  [VISUAL_DESCRIPTION]  [PERCEPTION]  RL=0.667  EM=0
+  Q  : What is the visual description of the vehicle in front-left camera?
+  REF: White sedan.
+  PRD: White.
+
+  [WHAT_QUERY]  [PLANNING]  RL=1.000  EM=1  ✓ EXACT
+  Q  : What is the probability of colliding with the vehicle in front camera after the ego vehicle goes straight and 
+  REF: Low.
+  PRD: Low
+
+  [WHICH_QUERY]  [PERCEPTION]  RL=0.553  EM=0
+  Q  : Which lanes are each important object on in the scene?
+  REF: the vehicle in back camera is in the left lane and the vehicle in front-left camera is also in the left lane.
+  PRD: There are two lanes in the scene. The ego car is in the left lane, and the moving vehicle is in the right lane
+
+  [YES_NO]  [PLANNING]  RL=1.000  EM=1  ✓ EXACT
+  Q  : Is it necessary for the ego vehicle to take the traffic element in front-left camera into account?
+  REF: Yes.
+  PRD: Yes.
+
+  -- EXACT MATCH EXAMPLES  (prediction == reference, 2 per category)
+
+  [PERCEPTION]  RL=1.000  BS=1.000  ✓ EXACT MATCH
+  Q  : Are there stopped buses to the back left of the ego car?
+  REF: No.
+  PRD: No.
+
+  [PREDICTION]  RL=1.000  BS=1.000  ✓ EXACT MATCH
+  Q  : Is the object in front camera a traffic sign or a road barrier?
+  REF: No.
+  PRD: No.
+
+  [PERCEPTION]  RL=1.000  BS=1.000  ✓ EXACT MATCH
+  Q  : Are there moving cars to the front of the ego car?
+  REF: Yes.
+  PRD: Yes.
+
+  [PREDICTION]  RL=1.000  BS=1.000  ✓ EXACT MATCH
+  Q  : Will the vehicle in back camera change its motion state based on the vehicle in front camera?
+  REF: No.
+  PRD: No.
+
+  [PLANNING]  RL=1.000  BS=1.000  ✓ EXACT MATCH
+  Q  : Is it necessary for the ego vehicle to take the traffic element in front camera into account?
+  REF: Yes.
+  PRD: Yes.
+
+  [PLANNING]  RL=1.000  BS=1.000  ✓ EXACT MATCH
+  Q  : Is the vehicle in front-left camera an object that the ego vehicle should consider in the current scene?
+  REF: Yes.
+  PRD: Yes.
+
+  -- SUCCESS RATE SUMMARY  (ROUGE-L thresholds by category)
+
+  Excellent (>=0.9):   behavior=0.0% (0/22)   perception=20.0% (191/953)   planning=25.9% (130/502)   prediction=30.2% (212/702)
+
+  Good      (>=0.7):   behavior=0.0% (0/22)   perception=24.7% (235/953)   planning=26.7% (134/502)   prediction=30.2% (212/702)
+
+  Partial   (>=0.5):   behavior=81.8% (18/22)   perception=31.6% (301/953)   planning=28.1% (141/502)   prediction=30.5% (214/702)
+
+  Weak      (>=0.3):   behavior=100.0% (22/22)   perception=43.9% (418/953)   planning=37.6% (189/502)   prediction=33.0% (232/702)
+
+  -- REPRESENTATIVE FAILURES  (2 per failure type)
+
+  [A_hallucination]  [PREDICTION]  RL=0.000  EM=0
+  Q  : Which object is most likely to be occluded by the vehicle in back camera? Would this object affect the ego veh
+  REF: None, no, none.
+  PRD: There is a car in front of the ego vehicle. The car in front camera is most likely to be occluded by the vehic
+
+  [A_hallucination]  [PREDICTION]  RL=0.000  EM=0
+  Q  : Which object is most likely to be occluded by the vehicle in front camera? Would this object affect the ego ve
+  REF: None, no, none.
+  PRD: There is a person walking in front of the vehicle. The ego vehicle is moving. The person is at risk of being h
+
+  [B_wrong_status]  [PERCEPTION]  RL=0.000  EM=0
+  Q  : What is the observed status of the vehicle in front camera?
+  REF: Stationary.
+  PRD: Moving.
+
+  [B_wrong_status]  [PERCEPTION]  RL=0.000  EM=0
+  Q  : What is the observed status of the object in front camera?
+  REF: Stationary.
+  PRD: Moving.
+
+  [C_wrong_camera]  [PREDICTION]  RL=0.132  EM=0
+  Q  : What object should the ego vehicle notice first when the ego vehicle is getting to the next possible location?
+  REF: Firstly, notice the traffic element in front camera. The object is a traffic sign, so the ego vehicle should d
+  PRD: There are 3 traffic lights to the front camera.
+
+  [C_wrong_camera]  [PREDICTION]  RL=0.259  EM=0
+  Q  : What object should the ego vehicle notice first when the ego vehicle is getting to the next possible location?
+  REF: Firstly, notice that the vehicle in front-left camera. The object is going ahead, so the ego vehicle should sl
+  PRD: There are 3 traffic lights to the front camera. The first traffic light is red, the second traffic light is gr
+
+  [D_incomplete]  [PERCEPTION]  RL=0.000  EM=0
+  Q  : Is there any traffic element in the front view?
+  REF: Yes, there are traffic elements in the front view.
+  PRD: No.
+
+  [D_incomplete]  [PREDICTION]  RL=0.000  EM=0
+  Q  : What is the future state of the vehicle in back camera?
+  REF: Keep going straight.
+  PRD: Moving.
+
+  [E_planning_error]  [PLANNING]  RL=0.000  EM=0
+  Q  : Is the vehicle in front camera an object that the ego vehicle should consider in the current scene?
+  REF: No.
+  PRD: Yes.
+
+  [E_planning_error]  [PLANNING]  RL=0.000  EM=0
+  Q  : Is the vehicle in back camera an object that the ego vehicle should consider in the current scene?
+  REF: No.
+  PRD: Yes.
+
+  [F_other]  [PERCEPTION]  RL=0.000  EM=0
+  Q  : Are there bicycles without riders to the back right of the ego car?
+  REF: Yes.
+  PRD: No.
+
+  [F_other]  [PERCEPTION]  RL=0.000  EM=0
+  Q  : Are there moving buses to the front right of the ego car?
+  REF: Yes.
+  PRD: No.

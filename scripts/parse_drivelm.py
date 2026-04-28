@@ -1,36 +1,8 @@
-"""
-DriveLM + nuScenes  —  Parser + Analysis  (v3)
-===============================================
-Verified logic:
-  - obj refs use semicolons (commas replaced by safe())
-  - camera extraction from both ref tokens and image_path strings
-  - question type classification with regex
-  - camera zone (front/back/both/none) per QA
-  - answer/question word count
-  - object count per QA
-
-Run:
-  python3 parse_drivelm_v3.py  <drivelm_json> 
-
-Outputs  (./drivelm_parsed/):
-  qa_enriched.csv    — one row per QA (primary table)
-  objects.csv        — one row per object per frame
-  frames.csv         — one row per key frame
-  scenes.csv         — one row per scene
-  analysis/
-
-"""
-
 import json, re, os, random, csv
 import pandas as pd
 from pathlib import Path
 from collections import Counter
 from nuscenes.nuscenes import NuScenes
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# CONSTANTS
-# ════════════════════════════════════════════════════════════════════════════
 
 CAMERAS = ['CAM_FRONT','CAM_FRONT_LEFT','CAM_FRONT_RIGHT',
            'CAM_BACK','CAM_BACK_LEFT','CAM_BACK_RIGHT']
@@ -51,10 +23,6 @@ BACK_CAMS  = {'CAM_BACK',  'CAM_BACK_LEFT',  'CAM_BACK_RIGHT'}
 OBJ_REF_PATTERN = re.compile(r'<c\d+;([A-Z_]+);[\d.]+;[\d.]+>')
 CAM_IN_PATH_PATTERN = re.compile(r'(CAM_[A-Z_]+):')
 
-
-# ════════════════════════════════════════════════════════════════════════════
-# HELPERS
-# ════════════════════════════════════════════════════════════════════════════
 
 def safe(text) -> str:
     """Sanitize for CSV: replace commas and newlines."""
@@ -719,7 +687,6 @@ if __name__ == '__main__':
     }
     save_csvs(all_dfs, output_dir)
 
-    # Step 8 — Analysis
     print(f'\nStep 5: Running analysis ...')
     run_analysis(
         qa      = dfs['qa'],       # use full QA (not just overlap) for stats

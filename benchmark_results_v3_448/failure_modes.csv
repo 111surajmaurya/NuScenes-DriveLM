@@ -1,0 +1,7 @@
+"failure_mode","count","pct_of_evaluated","description"
+"F_other","597","27.4","Other mismatch"
+"D_incomplete","267","12.3","Answer too short / misses objects"
+"E_planning_error","184","8.4","Wrong ego behavior or direction"
+"A_hallucination","172","7.9","Model hallucinates objects not in image"
+"B_wrong_status","95","4.4","Stationary/Moving confused"
+"C_wrong_camera","3","0.1","Wrong camera viewpoint referenced"
