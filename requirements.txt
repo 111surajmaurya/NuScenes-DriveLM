@@ -1,4 +1,1 @@
 peft==0.10.0
-pillow
-opencv-python
-tqdm
