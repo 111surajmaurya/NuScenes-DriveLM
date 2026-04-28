@@ -91,7 +91,7 @@ Run the ./notebook/nuscenes_tutorial.ipynb
 
 ## Pipeline
 
-### Step 1 — Parse and Enrich Data
+### Step 1 — Parse and Data Analysis
 
 Links DriveLM VQA annotations with nuScenes imagery and metadata into a single structured CSV.
 
@@ -110,6 +110,7 @@ drivelm_parsed/
 ├── scenes.csv            # 15 scene-level metadata entries
 └── analysis/
     └── analysis_summary.txt
+    └── ...
     └── ...
 ```
 
