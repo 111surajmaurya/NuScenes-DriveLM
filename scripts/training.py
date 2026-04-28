@@ -43,7 +43,7 @@ LORA_TARGET_MODULES = [
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# PROMPTS  (identical to benchmark_local.py for train/eval consistency)
+# PROMPTS
 # ════════════════════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = (
@@ -221,20 +221,7 @@ def build_prompt(question: str, cam_names: list, category: str,
 
 def split_dataframe(df: pd.DataFrame, val_ratio: float = 0.1,
                     seed: int = 42) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Stratified 90/10 split by qa_category.
 
-    Why stratified (not random):
-      behavior only has 22 rows. A pure random split might assign all 22 to
-      train, leaving val completely blind to behavior performance.
-      Stratified split guarantees every category appears in both splits.
-
-    Example result with val_ratio=0.1:
-      perception : 970 → 873 train +  97 val
-      prediction : 702 → 632 train +  70 val
-      planning   : 502 → 452 train +  50 val
-      behavior   :  22 →  20 train +   2 val
-    """
     train_parts, val_parts = [], []
     for cat in df['qa_category'].unique():
         sub   = df[df['qa_category'] == cat].sample(frac=1, random_state=seed)
@@ -320,22 +307,8 @@ class DriveLMCollator:
       Labels (what model is trained to predict):
         -100  -100  ...  -100  -100  -100  ...  <answer tokens>  <eos>
 
-      Steps:
-        1. Clone input_ids → labels
-        2. Find last "ASSISTANT:" token substring in each sequence
-           (last because few-shot examples in prompt also contain "ASSISTANT:")
-        3. Set labels[:assistant_end] = -100
-        4. Set labels[padding positions] = -100
-        5. PyTorch CrossEntropyLoss skips all -100 positions automatically
-
       Result: loss and gradients computed ONLY over answer tokens.
               The model learns to generate answers, not to predict prompts.
-
-    MULTI-IMAGE BATCHING:
-      Each sample may have 1–6 images. We flatten all images across the
-      batch into one list. The processor maps them positionally to <image>
-      tokens. Both lists are built from the same cam_names order, so
-      position alignment is guaranteed.
     """
 
     def __init__(self, processor, max_length: int = 3584):
@@ -419,10 +392,6 @@ def load_model_and_processor(mode: str = 'qlora', lora_r: int = 16,
                    Loads the full model in FP32 on CPU (~28 GB RAM needed).
                    Use --max-samples 4 --epochs 1 to keep it quick.
 
-    What gets frozen / trained:
-      vision_tower          → frozen   (no grad, saves 307M param memory)
-      multi_modal_projector → trained  (full, 20M params, high impact)
-      language_model        → LoRA     (A+B matrices ~70M params at r=16)
     """
     from transformers import LlavaForConditionalGeneration, LlavaProcessor
     from transformers import CLIPImageProcessor, AutoTokenizer
@@ -657,13 +626,6 @@ def save_checkpoint(model, processor, save_dir: str,
       adapter_model.safetensors  LoRA A,B + projector weights
       adapter_config.json        LoRA hyperparameters
       tokenizer + processor files
-
-    To load for inference later:
-      from peft import PeftModel
-      from transformers import LlavaForConditionalGeneration, AutoProcessor
-      base      = LlavaForConditionalGeneration.from_pretrained('llava-hf/llava-1.5-7b-hf')
-      model     = PeftModel.from_pretrained(base, save_dir)
-      processor = AutoProcessor.from_pretrained(save_dir)
     """
     import json
     os.makedirs(save_dir, exist_ok=True)

@@ -131,9 +131,6 @@ A: The action is to keep going at the same speed. The reason is to maintain a sa
 
 """,
 
-    # FIX v3: use DIFFERENT questions for each example.
-    # v2 had identical "Predict the behavior" twice with different answers
-    # → model confused by contradictory examples → behavior EM = 0.0000
     'behavior': """\
 Examples of correct behavior answers:
 Q: Predict the behavior of the ego vehicle.
@@ -359,7 +356,7 @@ def build_prompt_text(question: str, cam_names: list, category: str) -> str:
     """
     Build full prompt for LLaVA inference.
 
-    STRUCTURE (v3 — fixed from v2):
+    STRUCTURE:
 
       USER: [Front Camera]: <image>        ← images FIRST with inline labels
             [Back Camera]:  <image>
@@ -372,25 +369,6 @@ def build_prompt_text(question: str, cam_names: list, category: str) -> str:
 
             Answer:                        ← restored from v1, helps model
       ASSISTANT:                             produce short answers
-
-    WHY IMAGES FIRST:
-      LLaVA-1.5 was pretrained with <image> tokens at the very START of the
-      USER turn, before any text. Placing images mid-text (as v2 did) is
-      non-standard and disrupts the model's learned attention patterns for
-      image-text alignment.
-
-    WHY INLINE LABELS:
-      "[Front Camera]: <image>" binds the camera label to its visual token
-      positionally. LLaVA maps PIL image list → <image> tokens by position:
-      image[0] → first <image> token, image[1] → second, etc.
-      Without labels, images are anonymous blobs; with them, the model knows
-      which visual token block corresponds to which camera direction.
-
-    WHY "Answer:" CUE:
-      v1 ended with "Answer:\nASSISTANT:" — two completion cues.
-      "Answer:" trained the model to produce a short, direct answer.
-      v2 dropped it → model rambled → exact match dropped significantly.
-      v3 restores it.
     """
     few_shot = FEW_SHOT_EXAMPLES.get(category, '')
 
@@ -576,9 +554,6 @@ def classify_failure(pred: str, ref: str, category: str, rl: float) -> str | Non
     """
     Classify failure mode for low-scoring predictions (ROUGE-L < 0.3).
 
-    C_wrong_camera FIX (v2): uses multi-word camera phrases instead of
-    single direction words {'front','back','left','right'} which caused false
-    positives on phrases like "turn right" or "go straight back".
     """
     if rl >= 0.3:
         return None
@@ -634,10 +609,6 @@ def run_benchmark(df: pd.DataFrame, model, processor, cfg: dict,
         df = df[df['qa_category'].isin(categories)].copy()
 
     if limit and limit < len(df):
-        # Sample evenly across categories using an explicit loop instead of
-        # groupby+apply. The apply approach drops the groupby column
-        # (qa_category) from the result in some pandas versions, causing a
-        # KeyError later when we try to save sampled_questions.csv.
         n_per_cat = max(1, limit // df['qa_category'].nunique())
         parts = []
         for cat, grp in df.groupby('qa_category'):

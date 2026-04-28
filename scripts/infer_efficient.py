@@ -171,9 +171,13 @@ def parse_relevant_cameras(value: str) -> list:
 
 def load_pil_images(row: pd.Series, category: str,
                     nusc_root: str, max_size: int) -> dict:
-    relevant = parse_relevant_cameras(row.get('relevant_cameras', ''))
-    if not relevant:
-        relevant = FALLBACK_CAMERAS.get(category, ['CAM_FRONT'])
+    # planning and behavior always use all 6 cameras — same fix as benchmark script
+    if category in ('planning', 'behavior'):
+        relevant = list(ALL_CAMERAS)
+    else:
+        relevant = parse_relevant_cameras(row.get('relevant_cameras', ''))
+        if not relevant:
+            relevant = FALLBACK_CAMERAS.get(category, ['CAM_FRONT'])
     all_paths = parse_camera_paths(row.get('all_image_paths', ''))
 
     result = {}
@@ -207,13 +211,14 @@ def build_prompt(question: str, cam_names: list, category: str) -> str:
         f'[{CAMERA_LABEL.get(c, c.replace("_"," ").title())}]: <image>'
         for c in cam_names
     ]
+    image_section = chr(10).join(image_lines)
     user_content = (
+        f"{image_section}\n\n"
         f"{SYSTEM_PROMPT}\n\n"
         f"{few_shot}"
         f"{ANSWER_STYLE_RULES}\n"
-        f"Surround-view camera images:\n"
-        f"{chr(10).join(image_lines)}\n\n"
-        f"Question: {question}"
+        f"Question: {question}\n\n"
+        f"Answer:"
     )
     return f"USER: {user_content}\nASSISTANT:"
 
@@ -403,7 +408,10 @@ def infer_one(model, processor, row: pd.Series, category: str,
     # Build combined embeddings:
     # Replace each <image> token (id=32000) with 576 visual tokens
     IMAGE_TOKEN_ID  = 32000
-    TOKENS_PER_CAM  = 576
+    n_image_tokens  = sum(1 for pos in range(input_ids.shape[1])
+                          if input_ids[0, pos].item() == IMAGE_TOKEN_ID)
+    TOKENS_PER_CAM  = (visual_tokens.shape[0] // n_image_tokens
+                       if n_image_tokens > 0 else 576)
     new_emb         = []
     vis_cam_idx     = 0
 

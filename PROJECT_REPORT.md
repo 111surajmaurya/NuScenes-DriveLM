@@ -8,11 +8,9 @@
 
 1. [Data Preparation](#1-data-preparation)
 2. [Baseline VLM Benchmarking](#2-baseline-vlm-benchmarking)
-3. [Fine-Tuning](#3-fine-tuning)
-4. [Comparative Evaluation](#4-comparative-evaluation)
+3. [Fine-Tuning QLoRA](#3-fine-tuning-qlora)
+4. [Comparative Evaluation - Baseline vs Fine-Tuned](#4-comparative-evaluation---baseline-vs-fine-tuned)
 5. [Deployment & Optimization](#5-deployment--optimization)
-6. [Scripts Reference](#6-scripts-reference)
-7. [Setup & Reproduction](#7-setup--reproduction)
 
 ---
 
@@ -103,6 +101,12 @@ Mean answer length: **7.28 words** (std: 13.06). The high standard deviation ref
 - **Vehicle dominance:** 70.6% of referenced objects are vehicles — pedestrian and cyclist scenarios underrepresented
 
 ---
+
+### Sample Data Visualization
+
+![sample_5.jpg](outputs/sample_5.jpg)
+![sample_19.jpg](outputs/sample_19.jpg)
+
 ---
 
 ## 2. Baseline VLM Benchmarking
@@ -354,11 +358,6 @@ Training was run on Kaggle T4 16GB using QLoRA (4-bit NF4) with the following co
 
 Both models were evaluated on the same 52 QA samples (13 per category, seed=42) drawn from the validation split. The fine-tuned model uses the best_checkpoint saved at step 110 of training (val_loss=0.573, val_ppl=1.77).
 
-
-## 4. Comparative Evaluation
-
-Both models evaluated on the same 52 QA samples (13 per category, seed=42) from the validation split. Fine-tuned model uses `best_checkpoint` at step 110 (val_loss=0.573, val_ppl=1.77).
-
 ### Results
 
 | Category | Metric | Baseline | Fine-tuned | Delta |
@@ -396,12 +395,6 @@ The pattern is consistent with **format overfitting**: 800 training samples are 
 
 
 ---
-
-## 5. Deployment & Optimization
-
-### Architecture
-
-The inference system (`infer_efficient.py`) implements an image embedding cache to avoid redundant computation across questions about the same scene.
 
 ## 5. Deployment & Optimization
 

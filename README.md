@@ -275,7 +275,7 @@ python3 scripts/benchmark.py \
     --csv          ./drivelm_splits/val/qa_enriched.csv \
     --images       ./data/nuscenes \
     --out          ./results/finetuned \
-    --adapter-path ./checkpoints/best_checkpoint \
+    --adapter-path ./best_checkpoint \
     --img-size     448
 ```
 
