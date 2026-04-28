@@ -1,19 +1,3 @@
-"""
-Create train/validation splits for parsed DriveLM data at the scene level.
-
-Why scene-level?
-    Frames and QA pairs from the same scene are highly correlated. Splitting by
-    row would leak scene context from train into validation and inflate results.
-
-Usage:
-    python3 create_scene_split.py \
-        --input-dir ./drivelm_parsed \
-        --output-dir ./drivelm_splits \
-        --train-scenes 12 \
-        --val-scenes 3 \
-        --seed 42
-"""
-
 import argparse
 import json
 import random

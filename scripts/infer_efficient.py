@@ -252,10 +252,6 @@ def load_model(adapter_path: str = None):
     if adapter_path:
         from peft import PeftModel
         print(f'  Loading adapter: {adapter_path}')
-        # Keep LoRA separate — do NOT merge.
-        # merge_and_unload() converts 4-bit (3.5GB) to FP16 (13.4GB)
-        # leaving only ~2GB for activations on T4 → more OOM on 6-cam samples.
-        # Keeping LoRA separate maintains 4-bit memory (~4.5GB total).
         model = PeftModel.from_pretrained(
             model, adapter_path,
             is_trainable=False
@@ -386,16 +382,6 @@ def infer_one(model, processor, row: pd.Series, category: str,
     ).to(device)
     input_ids = tok['input_ids']
 
-    # Resolve the inner LLaMA language model.
-    # LlavaForConditionalGeneration has two relevant attributes:
-    #   .language_model  = LlamaForCausalLM  (has .generate(), .get_input_embeddings())
-    #   .model           = LlavaModel        (no .generate())
-    # PeftModel wraps the full model under .base_model.model
-    # After merge_and_unload there is no .base_model — access directly.
-    # We call language_model.generate() not model.generate() because
-    # LlavaForConditionalGeneration.generate() intercepts and routes through
-    # its own image processing pipeline, which expects pixel_values.
-    # We have already injected visual tokens manually so we want to bypass that.
     if hasattr(model, 'base_model'):
         # PeftModel still wrapping (is_trainable=False path)
         llava = model.base_model.model
@@ -439,10 +425,6 @@ def infer_one(model, processor, row: pd.Series, category: str,
         combined_emb.shape[:2], dtype=torch.long, device=device
     )
 
-    # Generate via the LLaMA language model directly.
-    # This bypasses LlavaForConditionalGeneration.generate() which would
-    # try to process pixel_values we did not pass (we injected visual tokens
-    # manually into inputs_embeds already).
     try:
         out_ids = lm.generate(
             inputs_embeds  = combined_emb,
@@ -583,7 +565,7 @@ def parse_args():
     p.add_argument('--limit',        type=int, default=None)
     p.add_argument('--categories',   nargs='+',
                    default=['perception','prediction','planning','behavior'])
-    p.add_argument('--img-size',     type=int, default=336)
+    p.add_argument('--img-size',     type=int, default=448)
     p.add_argument('--max-tokens',   type=int, default=100)
     p.add_argument('--dry-run',      action='store_true')
     p.add_argument('--cache-size',   type=int, default=215,

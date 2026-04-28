@@ -445,20 +445,6 @@ def load_model_and_processor(mode: str = 'qlora', lora_r: int = 16,
             bnb_4bit_quant_type       = 'nf4',
         )
 
-    # Load processor components separately and construct LlavaProcessor directly.
-    #
-    # WHY NOT AutoProcessor.from_pretrained():
-    #   The Hub config for llava-1.5-7b-hf now contains extra fields
-    #   (image_token, patch_size, num_additional_image_tokens,
-    #    vision_feature_select_strategy) that were added after the model
-    #   was originally released. AutoProcessor.from_pretrained() downloads
-    #   this config and tries to pass ALL fields to LlavaProcessor.__init__()
-    #   via cls(*args, **processor_dict). Older transformers versions whose
-    #   LlavaProcessor.__init__ does not accept these kwargs crash with:
-    #     TypeError: LlavaProcessor.__init__() got unexpected keyword 'image_token'
-    #
-    #   Constructing manually bypasses the config dict entirely and works
-    #   on any transformers version that has LlavaProcessor (>= 4.36).
     image_processor = CLIPImageProcessor.from_pretrained(MODEL_HF_ID)
     tokenizer       = AutoTokenizer.from_pretrained(MODEL_HF_ID, use_fast=False)
     processor       = LlavaProcessor(image_processor=image_processor,
@@ -466,19 +452,6 @@ def load_model_and_processor(mode: str = 'qlora', lora_r: int = 16,
     processor.tokenizer.pad_token    = processor.tokenizer.eos_token
     processor.tokenizer.padding_side = 'right'
 
-    # device_map / dtype handling
-    # ─────────────────────────────────────────────────────────────────────
-    # cpu_test : FP32, no device_map — stays on CPU, no GPU needed.
-    #
-    # qlora    : NO device_map. With transformers==4.40.0 (pinned in
-    #            requirements.txt), from_pretrained does NOT auto-infer
-    #            device_map for quantized models, so dispatch_model() is
-    #            never called and bitsandbytes handles GPU placement itself.
-    #            This is the only clean solution — transformers >= 4.38
-    #            auto-infers device_map internally, always triggering
-    #            dispatch_model() → model.to() → crash for 4-bit models.
-    #
-    # lora     : device_map='auto' — no quantization, works normally.
     if cpu_test:
         load_kwargs = dict(
             torch_dtype       = torch.float32,   # FP32, CPU safe
@@ -490,9 +463,6 @@ def load_model_and_processor(mode: str = 'qlora', lora_r: int = 16,
             low_cpu_mem_usage   = True,
             quantization_config = quant_cfg,
             torch_dtype         = torch.bfloat16,
-            # NO device_map — transformers 4.40.0 does not auto-infer it
-            # for quantized models, so dispatch_model() is never triggered.
-            # bitsandbytes places the model on GPU by itself.
         )
     else:
         load_kwargs = dict(
@@ -505,11 +475,6 @@ def load_model_and_processor(mode: str = 'qlora', lora_r: int = 16,
         MODEL_HF_ID, **load_kwargs
     )
 
-    # ── Inspect actual model structure ───────────────────────────────────
-    # Instead of hardcoding model.model.X or model.X (which changes across
-    # transformers versions), we walk model.named_modules() and find paths
-    # by class name. This is version-agnostic and fails loudly if anything
-    # is missing, giving you the actual class names to debug with.
     vision_tower_path = None
     mm_projector_path = None
 
@@ -555,13 +520,7 @@ def load_model_and_processor(mode: str = 'qlora', lora_r: int = 16,
     vision_tower = _get_submodule(model, vision_tower_path)
     mm_projector = _get_submodule(model, mm_projector_path)
 
-    # Build modules_to_save: only nn.Linear layers inside the projector.
-    # The projector has: linear_1, act (GELU activation), linear_2.
-    # modules_to_save must NOT include activation layers — they have no
-    # trainable parameters and peft's ModulesToSaveWrapper calls
-    # .requires_grad_(True) on all their children which crashes on
-    # non-float buffers (e.g. integer indices in some activations).
-    # Filter to only submodules that actually have trainable parameters.
+
     import torch.nn as nn
     projector_save = [
         f'{mm_projector_path}.{child_name}'
@@ -575,18 +534,11 @@ def load_model_and_processor(mode: str = 'qlora', lora_r: int = 16,
         param.requires_grad = False
     print('  vision_tower          : FROZEN')
 
-    # ── Prepare for k-bit training (QLoRA) ───────────────────────────────
-    # MUST happen BEFORE setting requires_grad on projector.
-    # prepare_model_for_kbit_training sets requires_grad=False on everything
-    # first, then casts LayerNorm to FP32. We re-enable the projector after.
     if mode == 'qlora':
         model = prepare_model_for_kbit_training(
             model,
             use_gradient_checkpointing    = True,
             gradient_checkpointing_kwargs = {'use_reentrant': False},
-            # use_reentrant=False is stable with peft+bitsandbytes on Colab T4.
-            # False is safer for complex custom autograd but LLaVA does not
-            # need it. True = classic checkpointing, fully correct here.
         )
 
     # ── Full-train multi_modal_projector ──────────────────────────────────
@@ -596,12 +548,6 @@ def load_model_and_processor(mode: str = 'qlora', lora_r: int = 16,
             param.requires_grad = True
     print('  multi_modal_projector : FULLY TRAINED (20M params)')
 
-    # ── Apply LoRA to language_model only ────────────────────────────────
-    # NO modules_to_save: peft's ModulesToSaveWrapper calls
-    # module.requires_grad_(True) on the whole module including bitsandbytes
-    # Params4bit buffers which are not float — causes RuntimeError.
-    # Projector is already trainable via manual requires_grad loop above.
-    # Projector weights are saved separately via projector.pt in save_checkpoint.
     lora_cfg = LoraConfig(
         r              = lora_r,
         lora_alpha     = lora_r * 2,
@@ -941,27 +887,9 @@ def train(
                      for k, v in batch.items()}
 
             # ── Forward ──────────────────────────────────────────────────
-            # Clear CUDA cache before each forward pass.
-            # Prevents memory fragmentation from previous iterations
-            # accumulating and causing OOM on large 6-camera samples.
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-            # autocast wraps forward + loss in BF16 where safe.
-            #
-            # QLoRA: bitsandbytes already runs LLM in BF16 via
-            #   bnb_4bit_compute_dtype=bfloat16, and vision tower is BF16.
-            #   autocast is mostly a no-op but catches any FP32 residuals
-            #   (e.g. projector LayerNorm after prepare_model_for_kbit_training
-            #   casts them to FP32) and speeds them up slightly.
-            #
-            # LoRA: base model is FP16, LayerNorms are FP32.
-            #   autocast converts eligible ops to BF16 → ~10-15% speedup.
-            #
-            # backward() is called OUTSIDE autocast — gradients always
-            # computed in full precision for numerical stability.
-            # GradScaler is NOT used because BF16 has wide enough range
-            # for LLM training (unlike FP16 which needs scaling).
             try:
                 outputs = model(
                     input_ids      = batch['input_ids'],
@@ -1009,10 +937,6 @@ def train(
                 pbar.set_postfix(postfix)
 
                 # ── Log every optimizer step ─────────────────────────────
-                # Log unconditionally — with small sample counts (50-500)
-                # total_steps is small (6-62) so log_every_n=10 would miss
-                # most steps. We log every step so the CSV always has a
-                # complete loss curve regardless of dataset size.
                 with open(log_path, 'a', newline='') as f:
                     csv.writer(f).writerow([
                         epoch + 1, global_step,
